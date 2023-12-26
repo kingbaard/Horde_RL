@@ -1,3 +1,5 @@
+
+    
 ACTIONS = [
     'move_left',
     'move_right',
@@ -7,6 +9,26 @@ ACTIONS = [
     'shoot_right',
     'shoot_up',
     'shoot_down',
+]
+
+HOR_DIR = [
+    0, #left
+    1, #right
+    2, #no direction
+]
+
+VER_DIR = [
+    0, #up
+    1, #down
+    2, #no direction
+]
+
+SHOOT_DIR = [
+    0, #left
+    1, #right
+    2, #up
+    3, #down
+    4, #no shoot 
 ]
 
 class Agent():
