@@ -1,3 +1,4 @@
+import math
 import pygame
 import random
 
@@ -22,28 +23,54 @@ class GameEnv():
         self.clock = pygame.time.Clock()
         self.reset()
 
-        self.last_shoot_tick = 0 
+        self.last_shoot_tick = 0
+        self.enemy_spawn_timer = 
         self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
-        self.enemies = [Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), 10, 10) for _ in range(10)]
+        self.enemies = []
+        self.spawn_enemies(10)
         self.bullets = []
+
+        self.enemy_eliminated = False
 
         self.delete_queue = []
 
-    def step(self, action):
+    def step(self, hor_dir, ver_dir, shoot_dir):
         # move logic for updating agents, etc.
+        self.clock.tick()
         observation = self.get_state()
         reward = self.get_reward()
         is_done = self.is_done()
         info = {}
+
+        self.handle_bullets()
+        self.handle_enemies()
+        self.handle_player_movement(hor_dir=hor_dir, ver_dir=ver_dir)
+        self.handle_shoot(shoot_dir=shoot_dir)
+
+        if self.render_mode == 'human':
+            self.render()
+
+        
+
         return observation, reward, is_done, info
 
     def reset(self):
-        self.player = Player(WIDTH // 2, HEIGHT // 2, 20, 20)
-        self.enemies = [Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), 10, 10) for _ in range(10)]
+        pygame.init()
+        pygame.display.set_caption("Horde RL")
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.clock = pygame.time.Clock()
+        self.reset()
+
+        self.last_shoot_tick = 0 
+        self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
+        self.enemies = []
+        self.spawn_enemies(10)
         self.bullets = []
 
-    def render(self, mode='human'):
-        if mode == 'human':
+        self.delete_queue = []
+
+    def render(self):
+        if self.render_mode == 'human':
             self.screen.fill(BLACK)
             self.player.render(self.screen)
 
@@ -77,8 +104,29 @@ class GameEnv():
 
         self.player.slide(player_dx, player_dy)
 
-    def spawn_enemies(self):
-        pass 
+    def spawn_enemies(self, count):
+        for _ in count:
+            self.spawn_enemy()
+
+    def spawn_enemy(self):
+        spawn_pos = (0, 0)
+        point_on_border = random.randint(0, WIDTH*2 + HEIGHT*2)
+        if point_on_border < WIDTH: # Top edge
+            spawn_pos = (point_on_border, 0)
+        point_on_border -= WIDTH 
+
+        if point_on_border < HEIGHT: # Right edge
+            spawn_pos = (WIDTH, point_on_border)
+        point_on_border -= HEIGHT 
+
+        if point_on_border < WIDTH: # Bottom edge
+            spawn_pos = (WIDTH - point_on_border, HEIGHT)
+        point_on_border -= WIDTH
+
+        spawn_pos = (0, HEIGHT - point_on_border) # Left edge
+
+        self.enemies.append(Enemy(spawn_pos[0], spawn_pos[0], 10, 10))
+        
 
     def handle_enemies(self):
         for e in self.enemies:
@@ -93,6 +141,7 @@ class GameEnv():
             for e in self.enemies:
                 if b.rect.colliderect(e.rect):
                     self.delete_queue.append((b, e))
+                    self.enemy_eliminated = True
             b.render(self.screen)
 
     def handle_shoot(self, shoot_dir):
@@ -116,8 +165,11 @@ class GameEnv():
 
     def get_state(self):
         # [[player_posX, player_posY], [enemy pos]]
-        pass
-        #return state
+        state = [
+            [self.player.x, self.player.y],
+            [[e.x, e.y] for e in self.enemies]
+        ]
+        return state
     
     def get_reward(self):
         reward 
@@ -125,12 +177,13 @@ class GameEnv():
         reward += 1
 
         # Distance from enemies, higher the better
-
+        min_distance = min([math.dist(e.x, e.y) for e in self.enemies])
 
         # Enemy elimination
-        reward += 10 * enemies_eliminated
+        reward += 10 * self.enemy_eliminated
+        self.enemy_eliminated = False
 
-        if game_over:
+        if not self.player.is_alive:
             reward = -50
 
         return reward
