@@ -23,35 +23,43 @@ class GameEnv():
         self.clock = pygame.time.Clock()
         self.reset()
 
+        self.is_alive = True
         self.last_shoot_tick = 0
-        self.enemy_spawn_timer = 
+        self.last_spawn_tick = 0
+        self.enemy_spawn_timer = 10
         self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
         self.enemies = []
         self.spawn_enemies(10)
         self.bullets = []
+        self.kill_count = 0
+        self.spawn_count = 1
+        self.spawn_cooldown = 10000
 
         self.enemy_eliminated = False
 
         self.delete_queue = []
+        self.render_mode = 'human'
 
-    def step(self, hor_dir, ver_dir, shoot_dir):
+    def step(self, action):
         # move logic for updating agents, etc.
-        self.clock.tick()
-        observation = self.get_state()
-        reward = self.get_reward()
-        is_done = self.is_done()
-        info = {}
-
+        hor_dir, ver_dir, shoot_dir = action
+        self.handle_player_movement(hor_dir=hor_dir, ver_dir=ver_dir)
         self.handle_bullets()
         self.handle_enemies()
-        self.handle_player_movement(hor_dir=hor_dir, ver_dir=ver_dir)
         self.handle_shoot(shoot_dir=shoot_dir)
+        self.set_difficulty()
+        self.enemy_spawn_check()
+        self.delete_objects()
+        print(f"self.spawn_cooldown: {self.spawn_cooldown}")
 
         if self.render_mode == 'human':
             self.render()
-
         
-
+        self.clock.tick(FPS)
+        observation = self.get_state()
+        reward = self.get_reward()
+        is_done = not self.is_alive
+        info = {}
         return observation, reward, is_done, info
 
     def reset(self):
@@ -59,7 +67,6 @@ class GameEnv():
         pygame.display.set_caption("Horde RL")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
-        self.reset()
 
         self.last_shoot_tick = 0 
         self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
@@ -98,41 +105,62 @@ class GameEnv():
             case 0: 
                 player_dy = 0 if self.player.y < 0 else -PLAYER_SPEED
             case 1:
-                player_dy = 0 if self.player.y < (HEIGHT - self.player.height) else PLAYER_SPEED
+                player_dy = 0 if self.player.y > (HEIGHT - self.player.height) else PLAYER_SPEED
             case _:
                 player_dy = 0 
 
         self.player.slide(player_dx, player_dy)
 
+    def enemy_spawn_check(self):
+        current_tick = pygame.time.get_ticks()
+        if current_tick - self.last_spawn_tick >= self.spawn_cooldown:
+            self.spawn_enemies(self.spawn_count)
+            self.last_shoot_tick = current_tick
+
+    def set_difficulty(self):
+        match self.kill_count:
+            case 3:
+                self.spawn_cooldown = 9000
+            case 6:
+                self.spawn_cooldown = 8000
+            case 9:
+                self.spawn_cooldown = 7000
+            case 12:
+                self.spawn_cooldown = 6000
+            case 15:
+                self.spawn_cooldown = 5000
+            case 18:
+                self.spawn_cooldown = 10000
+                self.spawn_count = 2
+            case 21:
+                self.spawn_cooldown = 9000
+            case 24:
+                self.spawn_cooldown = 8000
+            case 27:
+                self.spawn_cooldown = 7000
+            case 30:
+                self.spawn_count = 3
+                self.spawn_cooldown = 10000
+
+
     def spawn_enemies(self, count):
-        for _ in count:
+        for _ in range(count):
+            # print("enemy_spawned")
             self.spawn_enemy()
 
     def spawn_enemy(self):
-        spawn_pos = (0, 0)
         point_on_border = random.randint(0, WIDTH*2 + HEIGHT*2)
-        if point_on_border < WIDTH: # Top edge
-            spawn_pos = (point_on_border, 0)
-        point_on_border -= WIDTH 
-
-        if point_on_border < HEIGHT: # Right edge
-            spawn_pos = (WIDTH, point_on_border)
-        point_on_border -= HEIGHT 
-
-        if point_on_border < WIDTH: # Bottom edge
-            spawn_pos = (WIDTH - point_on_border, HEIGHT)
-        point_on_border -= WIDTH
-
-        spawn_pos = (0, HEIGHT - point_on_border) # Left edge
-
-        self.enemies.append(Enemy(spawn_pos[0], spawn_pos[0], 10, 10))
+        spawn_pos_x, spawn_pos_y = get_spawn_location(point_on_border=point_on_border)
+        self.enemies.append(Enemy(spawn_pos_x, spawn_pos_y, 10, 10))
         
 
     def handle_enemies(self):
         for e in self.enemies:
             e.chase(self.player)
             if e.rect.colliderect(self.player.rect):
+                print("Enemy collide")
                 self.player.is_alive == False
+                self.is_alive = False
             e.render(self.screen)
 
     def handle_bullets(self):
@@ -142,23 +170,38 @@ class GameEnv():
                 if b.rect.colliderect(e.rect):
                     self.delete_queue.append((b, e))
                     self.enemy_eliminated = True
+                    self.kill_count += 1
+                    print("enemy killed!")
             b.render(self.screen)
 
     def handle_shoot(self, shoot_dir):
         can_shoot = pygame.time.get_ticks() - self.last_shoot_tick >= GUN_COOLDOWN
+        # print(can_shoot)
         if shoot_dir != 4 and can_shoot:
             match shoot_dir:
                 case 0:
+                    # print("shoot left")
                     self.bullets.append(Bullet(self.player.x, self.player.y + (self.player.height / 2), LEFT))
                 case 1:
+                    # print("shoot right")
                     self.bullets.append(Bullet(self.player.x + self.player.width, self.player.y + (self.player.height / 2), RIGHT))
                 case 2:
+                    # print("shoot up")
                     self.bullets.append(Bullet(self.player.x + (self.player.width /2), self.player.y, UP))
                 case 3:
+                    # print("shoot down")
                     self.bullets.append(Bullet(self.player.x  + (self.player.width /2), self.player.y, DOWN))
                 case _:
                     pass
             self.last_shoot_tick = pygame.time.get_ticks()
+
+    def delete_objects(self):
+        for b, e in self.delete_queue:
+            if b in self.bullets:
+                self.bullets.remove(b)
+            if e in self.enemies:
+                self.enemies.remove(e)
+            self.delete_queue.remove((b, e))
 
     def close(self):
         pygame.quit()
@@ -172,68 +215,36 @@ class GameEnv():
         return state
     
     def get_reward(self):
-        reward 
+        reward = 0
         # Reward for being alive this tick
-        reward += 1
+        reward += 5
 
         # Distance from enemies, higher the better
-        min_distance = min([math.dist(e.x, e.y) for e in self.enemies])
+        player_pos = (self.player.x, self.player.y)
+        min_distance = min([math.dist((player_pos), (e.x, e.y)) for e in self.enemies])
+        reward += min_distance / 10
 
         # Enemy elimination
         reward += 10 * self.enemy_eliminated
         self.enemy_eliminated = False
 
         if not self.player.is_alive:
-            reward = -50
-
+            reward = -500
+        
+        # print(reward)
         return reward
 
+def get_spawn_location(point_on_border):
+    if point_on_border < WIDTH: # Top edge
+            return (point_on_border, 0)
+    point_on_border -= WIDTH 
 
-## Game loop
-running = True
-while running:
-    #1 Process input/events
-    clock.tick(FPS)     ## will make the loop run at the same speed all the time
-    for event in pygame.event.get():        # gets all the events which have occured till now and keeps tab of them.
-        ## listening for the the X button at the top
-        if event.type == pygame.QUIT:
-            running = False
+    if point_on_border < HEIGHT: # Right edge
+        return (WIDTH, point_on_border)
+    point_on_border -= HEIGHT 
 
-    #2 Update
-    for e in enemies:
-        e.chase(player)
-        if e.rect.colliderect(player.rect):
-            print(f"Player rect: ({player.rect.centerx},{player.rect.centery})")
-            player.is_alive == False
+    if point_on_border < WIDTH: # Bottom edge
+        return (WIDTH - point_on_border, HEIGHT)
+    point_on_border -= WIDTH
 
-    for b in bullets:
-        b.move()
-        for e in enemies:
-            if b.rect.colliderect(e.rect):
-                be_delete_queue.append((b, e))
-
-    #3 Draw/render
-    screen.fill(BLACK)
-    # if player.slash_rect:
-
-    for e in enemies:
-        if e.is_delete_queued:
-            enemies.remove(e)
-        e.render(screen)
-    for b in bullets:
-        b.render(screen)
-
-    if player.is_alive:
-        player.render(screen)
-
-    # Delete
-    for b, e in be_delete_queue:
-        print(b)
-        print(e)
-        if b in bullets:
-            bullets.remove(b)
-        if e in enemies:
-            enemies.remove(e)
-        be_delete_queue.remove((b, e))    
-
-pygame.quit()
+    return (0, HEIGHT - point_on_border) # Left edge
