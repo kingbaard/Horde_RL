@@ -47,10 +47,9 @@ class GameEnv():
         self.handle_bullets()
         self.handle_enemies()
         self.handle_shoot(shoot_dir=shoot_dir)
-        self.set_difficulty()
         self.enemy_spawn_check()
         self.delete_objects()
-        print(f"self.spawn_cooldown: {self.spawn_cooldown}")
+        # print(f"self.spawn_cooldown: {self.spawn_cooldown}")
 
         if self.render_mode == 'human':
             self.render()
@@ -73,6 +72,8 @@ class GameEnv():
         self.enemies = []
         self.spawn_enemies(10)
         self.bullets = []
+
+        self.spawn_count = 0
 
         self.delete_queue = []
 
@@ -114,10 +115,13 @@ class GameEnv():
     def enemy_spawn_check(self):
         current_tick = pygame.time.get_ticks()
         if current_tick - self.last_spawn_tick >= self.spawn_cooldown:
+            self.spawn_count += 1
+            print(f"Spawning enemy: {self.spawn_count}")
             self.spawn_enemies(self.spawn_count)
-            self.last_shoot_tick = current_tick
+            self.last_spawn_tick = current_tick
 
     def set_difficulty(self):
+        # print(f"Kill count: {self.kill_count}")
         match self.kill_count:
             case 3:
                 self.spawn_cooldown = 9000
@@ -171,6 +175,7 @@ class GameEnv():
                     self.delete_queue.append((b, e))
                     self.enemy_eliminated = True
                     self.kill_count += 1
+                    self.set_difficulty()
                     print("enemy killed!")
             b.render(self.screen)
 
