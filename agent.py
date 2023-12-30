@@ -5,15 +5,6 @@ import numpy as np
 num_states = 216
 num_actions = 3 * 3 * 5
 Q = np.zeros((num_states, num_actions))
-    
-def epsilon_greedy_policy(state, Q, epsilon);
-    if np.random.rand() < epsilon:
-        hor_dir = np.random.choice(HOR_DIR)
-        ver_dir = np.random.choice(VER_DIR)
-        shoot_dir = np.random.choice(SHOOT_DIR)
-        return (hor_dir, ver_dir, shoot_dir)
-    else:
-        return np.argmax(Q[state])
 
 class Agent():
     def __init__(self, learning_rate, gamma, epsilon):
@@ -27,12 +18,24 @@ class Agent():
     def observe(self, state):
         pass
 
-    def decide_action(self):
-        action = None
-        return action
+    #Epsilon greedy policy
+    def choose_action(self, state):
+        if np.random.rand() < self.epsilon:
+            action_index = np.random.choice(self.num_actions)
+        else:
+            action_index = np.argmax(self.Q[state])
+        return self.decode_action(action_index)
     
-    def learn(self, reward):
-        pass
+    def learn(self, state, action, reward, next_state, next_action):
+        action_index = self.encode_action(action)
+        next_action_index = self.encode_action(next_action)
+    
+        predict = self.Q[state, action_index]
+        target = reward + self.gamma * self.Q[next_state, next_action_index]
+        self.Q[state, action_index] += self.learning_rate * (target - predict)
+        
+    def set_epsilon(self, new_value): 
+        self.epsilon = new_value 
         
     def encode_action(self, action):
         index = action[0]

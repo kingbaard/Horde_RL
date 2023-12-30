@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import pygame
 import random
 
@@ -68,7 +69,7 @@ class GameEnv():
         self.clock = pygame.time.Clock()
 
         self.last_shoot_tick = 0 
-        self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
+        self.player = Player(WIDTH-WIDTH / 2, HEIGHT-HEIGHT / 2, 20, 20)
         self.enemies = []
         self.spawn_enemies(10)
         self.bullets = []
@@ -91,7 +92,6 @@ class GameEnv():
             pygame.display.flip()
 
     def handle_player_movement(self, hor_dir, ver_dir):
-        # Player
         player_dx = 0
         player_dy = 0
         match hor_dir:
@@ -146,7 +146,6 @@ class GameEnv():
                 self.spawn_count = 3
                 self.spawn_cooldown = 10000
 
-
     def spawn_enemies(self, count):
         for _ in range(count):
             # print("enemy_spawned")
@@ -156,7 +155,6 @@ class GameEnv():
         point_on_border = random.randint(0, WIDTH*2 + HEIGHT*2)
         spawn_pos_x, spawn_pos_y = get_spawn_location(point_on_border=point_on_border)
         self.enemies.append(Enemy(spawn_pos_x, spawn_pos_y, 10, 10))
-        
 
     def handle_enemies(self):
         for e in self.enemies:
@@ -212,11 +210,50 @@ class GameEnv():
         pygame.quit()
 
     def get_state(self):
-        # [[player_posX, player_posY], [enemy pos]]
-        state = [
-            [self.player.x, self.player.y],
-            [[e.x, e.y] for e in self.enemies]
-        ]
+        # What zone is player in, closest enemy theta zone and distance number
+        vertical_index = self.player.y // (HEIGHT // 3)
+        horizontal_index = self.player.x // (WIDTH // 3)
+        player_zone = vertical_index * 3 + horizontal_index
+
+        # get closest enemy info
+        min_distance = 9999
+        player_pos = (self.player.x, self.player.y)
+        for e in self.enemies:
+            e_distance = math.dist(player_pos, (e.x, e.y))
+            if e_distance < min_distance:
+                min_distance = e_distance
+                closest_e = e
+        
+        #Find E theta zone
+        # N -> 0, NE -> 1, W -> 2, SE -> 3, S -> 4, SW -> 5, W -> 6, NW-> 7
+        dx = player_pos[0] - closest_e.x
+        dy = player_pos[1] - closest_e.y
+        e_theta = np.arctan2(dy, dx)
+        enemy_theta_zone = 0
+
+        #TODO: categorize e_distance between near, medium, and and far  
+
+        if 0 <= e_theta < math.pi/2:
+            enemy_theta_zone = 1
+        elif  math.pi/2 <= e_theta < math.pi:
+            enemy_theta_zone = 3
+        elif (math.pi/2) * 3 <= e_theta < (math.pi/2) * 4:
+            enemy_theta_zone = 5
+        elif (math.pi/2) * 4 <= e_theta < (math.pi/2) * 5:
+            enemy_theta_zone = 7
+
+        if player_pos[0] < e.x < player_pos[0] + 20:
+            if e.y < player_pos[1]:
+                enemy_theta_zone = 0
+            elif e.y > player_pos[1]:
+                enemy_theta_zone = 2
+        elif player_pos[1] < e.y < player_pos[1] + 20: 
+            if e.x < player_pos[0]:
+                enemy_theta_zone = 4
+            elif e.x > player_pos[0]:
+                enemy_theta_zone = 6
+
+        state = [player_zone, enemy_theta_zone, min_distance]
         return state
     
     def get_reward(self):
