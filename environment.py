@@ -5,7 +5,7 @@ import random
 
 from Constants import *
 from GameObjects import Player, Enemy, Bullet
-from Agent import Agent
+
 
 # Define Colors 
 WHITE = (255, 255, 255)
@@ -23,23 +23,6 @@ class GameEnv():
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.reset()
-
-        self.is_alive = True
-        self.last_shoot_tick = 0
-        self.last_spawn_tick = 0
-        self.enemy_spawn_timer = 10
-        self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
-        self.enemies = []
-        self.spawn_enemies(10)
-        self.bullets = []
-        self.kill_count = 0
-        self.spawn_count = 1
-        self.spawn_cooldown = 10000
-
-        self.enemy_eliminated = False
-
-        self.delete_queue = []
-        self.render_mode = 'human'
 
     def step(self, action):
         # move logic for updating agents, etc.
@@ -68,15 +51,25 @@ class GameEnv():
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
 
-        self.last_shoot_tick = 0 
-        self.player = Player(WIDTH-WIDTH / 2, HEIGHT-HEIGHT / 2, 20, 20)
+        self.is_done = False
+        self.is_alive = True
+        self.last_shoot_tick = 0
+        self.last_spawn_tick = 0
+        self.enemy_spawn_timer = 10
+        self.player = Player(WIDTH-WIDTH/2, HEIGHT-HEIGHT/2, 20, 20)
         self.enemies = []
         self.spawn_enemies(10)
         self.bullets = []
+        self.kill_count = 0
+        self.spawn_count = 1
+        self.spawn_cooldown = 10000
 
-        self.spawn_count = 0
+        self.enemy_eliminated = False
 
         self.delete_queue = []
+        self.render_mode = 'human'
+
+        return self.get_state()
 
     def render(self):
         if self.render_mode == 'human':
@@ -163,6 +156,7 @@ class GameEnv():
                 print("Enemy collide")
                 self.player.is_alive == False
                 self.is_alive = False
+                self.enemies = []
             e.render(self.screen)
 
     def handle_bullets(self):
@@ -210,6 +204,9 @@ class GameEnv():
         pygame.quit()
 
     def get_state(self):
+        if not self.enemies:
+            state = [4, 0, 2]
+            return state 
         # What zone is player in, closest enemy theta zone and distance number
         vertical_index = self.player.y // (HEIGHT // 3)
         horizontal_index = self.player.x // (WIDTH // 3)
@@ -226,12 +223,12 @@ class GameEnv():
         
         #Find E theta zone
         # N -> 0, NE -> 1, W -> 2, SE -> 3, S -> 4, SW -> 5, W -> 6, NW-> 7
-        dx = player_pos[0] - closest_e.x
-        dy = player_pos[1] - closest_e.y
-        e_theta = np.arctan2(dy, dx)
+        e_theta = 0 
+        if self.enemies:
+            dx = player_pos[0] - closest_e.x
+            dy = player_pos[1] - closest_e.y
+            e_theta = np.arctan2(dy, dx)
         enemy_theta_zone = 0
-
-        #TODO: categorize e_distance between near, medium, and and far  
 
         if 0 <= e_theta < math.pi/2:
             enemy_theta_zone = 1
@@ -253,7 +250,17 @@ class GameEnv():
             elif e.x > player_pos[0]:
                 enemy_theta_zone = 6
 
-        state = [player_zone, enemy_theta_zone, min_distance]
+        #Categorize e_distance between near, medium, and and far 
+        e_distance_category = None
+        match e_distance:
+            case  _ if e_distance > 25:
+                e_distance_category = 2 # Far
+            case _ if e_distance > 10:
+                e_distance_category = 1 # Med
+            case _:
+                e_distance_category = 0 # Close
+
+        state = [int(player_zone), enemy_theta_zone, e_distance_category]
         return state
     
     def get_reward(self):
@@ -263,7 +270,9 @@ class GameEnv():
 
         # Distance from enemies, higher the better
         player_pos = (self.player.x, self.player.y)
-        min_distance = min([math.dist((player_pos), (e.x, e.y)) for e in self.enemies])
+        if self.enemies:
+            min_distance = min([math.dist((player_pos), (e.x, e.y)) for e in self.enemies])
+        min_distance = 300
         reward += min_distance / 10
 
         # Enemy elimination
