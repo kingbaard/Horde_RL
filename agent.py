@@ -59,8 +59,9 @@ class Agent():
 
     def encode_state(self, state):
         index = state[0]
-        index += state[1] * 8
-        index += state[2] * 3
+        for e_zone, e_distance in state[1]: 
+            index += e_zone * 8
+            index += e_distance * 3
 
         return int(index)
 
@@ -68,7 +69,10 @@ class Agent():
         enemy_distance = index // 3
         index = index % 3
 
-        enemy_zone = index // 8
-        player_zone = index % 8
+        enemy_data = []
+        for i in range(5):
+            e_zone = index // 8
+            e_distance = index // 3 if i != 4 else index % 8
+            enemy_data.append(e_zone, e_distance)
 
-        return (player_zone, enemy_zone, enemy_distance)
+        return (player_zone, enemy_data)
