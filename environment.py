@@ -2,6 +2,7 @@ import math
 import numpy as np
 import pygame
 import random
+import cv2
 
 from Constants import *
 from GameObjects import Player, Enemy, Bullet
@@ -29,6 +30,7 @@ class GameEnv():
         self.handle_enemies()
         self.handle_shoot(shoot_dir=shoot_dir)
         # self.enemy_spawn_check()
+        image = self.get_screenshot()
         self.delete_objects()
         # print(f"self.spawn_cooldown: {self.spawn_cooldown}")
 
@@ -207,7 +209,7 @@ class GameEnv():
 
     def get_state(self):
         if not self.enemies:
-            return [4, 0, 2] 
+            return [4, [(0, 2) for _ in range(5)]] 
         # What zone is player in, closest enemy theta zone and distance number
         vertical_index = self.player.y // (HEIGHT // 3)
         horizontal_index = self.player.x // (WIDTH // 3)
@@ -273,11 +275,12 @@ class GameEnv():
         reward += 5
 
         # Distance from enemies, higher the better
-        reward += state[2] * 100
+        for e_zone, e_distance in state[1]:
+            reward += e_distance * 10
 
-        # Enemy is in shoot zone
-        if state[1] in [0, 2, 4, 6]:
-            reward += 10
+            # Enemy is in shoot zone
+            if e_zone in [0, 2, 4, 6]:
+                reward += 5
 
         # Enemy elimination
         reward += 100 * self.enemy_eliminated
@@ -293,6 +296,14 @@ class GameEnv():
         vertical_index = self.player.y // (HEIGHT // 3)
         horizontal_index = self.player.x // (WIDTH // 3)
         player_zone = vertical_index * 3 + horizontal_index
+
+    def get_screenshot(self):
+        pygame_surface = pygame.display.get_surface()
+        surface_data = pygame.image.tostring(pygame_surface, 'RGB')
+        cv_image = np.fromstring(surface_data, dtype=np.uint8).reshape(HEIGHT, WIDTH, 3)
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2GRAY)
+        
+        return cv_image
 
 def get_spawn_location(point_on_border):
     if point_on_border < WIDTH: # Top edge

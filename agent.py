@@ -2,13 +2,13 @@ import numpy as np
 
 # Create Q-table
 # Current Quad * 
-num_states = 216
+num_states = 71663616
 num_actions = 3 * 3 * 5
 Q = np.zeros((num_states, num_actions))
 
 class Agent():
     def __init__(self, learning_rate, gamma, epsilon):
-        self.num_states = 216
+        self.num_states = 71663616
         self.num_actions = 3 * 3 * 5
         self.learning_rate = learning_rate
         self.gamma = gamma
@@ -35,7 +35,7 @@ class Agent():
     
         predict = self.Q[state_index , action_index]
         target = reward + self.gamma * self.Q[next_state_index, next_action_index]
-        self.Q[state, action_index] += self.learning_rate * (target - predict)
+        self.Q[state_index, action_index] += self.learning_rate * (target - predict)
         
     def set_epsilon(self, new_value): 
         self.epsilon = new_value 
@@ -66,13 +66,13 @@ class Agent():
         return int(index)
 
     def decode_state(self, index):
-        enemy_distance = index // 3
-        index = index % 3
-
         enemy_data = []
-        for i in range(5):
+        for _ in range(5):
+            e_distance = index // 3
+            index = index % 3
+
             e_zone = index // 8
-            e_distance = index // 3 if i != 4 else index % 8
+            index = index % 8
             enemy_data.append(e_zone, e_distance)
 
-        return (player_zone, enemy_data)
+        return (index, enemy_data)
