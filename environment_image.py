@@ -4,8 +4,8 @@ import pygame
 import random
 import cv2
 
-from envs.Constants import *
-from envs.GameObjects import Player, Enemy, Bullet
+from HordeGame.HordeGame.Constants import *
+from HordeGame.HordeGame.GameObjects import Player, Enemy, Bullet
 
 
 # Define Colors 

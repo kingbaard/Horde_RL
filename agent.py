@@ -1,5 +1,5 @@
 import numpy as np
-from envs.Constants import *
+from HordeGame.HordeGame.Constants import *
 import random
 
 import tensorflow as tf
